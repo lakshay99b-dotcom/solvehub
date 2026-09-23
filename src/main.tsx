@@ -3,227 +3,35 @@ import {createRoot} from 'react-dom/client';
 import {supabase} from './lib/supabase';
 import {acceptSolution,createProblem,createSolution,getProblem,getProblems,getProfile,getSolutions,recordView,toggleBookmark} from './lib/api';
 import type {Difficulty,Problem,Profile,Solution} from './types';
-import {Code2,Plus,Search,Bookmark,CheckCircle2,Eye,User} from 'lucide-react';
+import {Search,Plus,Home,UserRound,Bookmark,ChevronLeft,CheckCircle2,Code2,LogOut,Send,ArrowUp,Loader2,ShieldCheck,MessageSquare,Eye,Menu,X} from 'lucide-react';
 import './styles.css';
 
-function App(){
-  const [view,setView]=useState<'home'|'problem'|'profile'|'new'>('home');
-  const [problems,setProblems]=useState<Problem[]>([]);
-  const [selected,setSelected]=useState<Problem|null>(null);
-  const [solutions,setSolutions]=useState<Solution[]>([]);
-  const [profile,setProfile]=useState<Profile|null>(null);
-  const [loading,setLoading]=useState(true);
-  const [query,setQuery]=useState('');
-  const [title,setTitle]=useState('');
-  const [description,setDescription]=useState('');
-  const [difficulty,setDifficulty]=useState<Difficulty>('intermediate');
-  const [tags,setTags]=useState('react,typescript');
-  const [body,setBody]=useState('');
-  const [user,setUser]=useState<any>(null);
-
-  useEffect(()=>{
-    (async()=>{
-      try{
-        const {data:{session}}=await supabase?.auth.getSession()??{data:{session:null}};
-        setUser(session?.user??null);
-        if(session?.user){
-          const p=await getProfile(session.user.id);
-          setProfile(p);
-        }
-        const list=await getProblems();
-        setProblems(list);
-      }catch(e){console.error(e)}
-      setLoading(false);
-    })();
-  },[]);
-
-  const filtered=useMemo(()=>problems.filter(p=>!query||p.title.toLowerCase().includes(query.toLowerCase())||p.description.toLowerCase().includes(query.toLowerCase())),[problems,query]);
-
-  async function openProblem(p:Problem){
-    setSelected(p);
-    setView('problem');
-    try{
-      await recordView(p.id);
-      const full=await getProblem(p.id);
-      setSelected(full);
-      const sols=await getSolutions(p.id);
-      setSolutions(sols);
-    }catch(e){console.error(e)}
-  }
-
-  async function submitProblem(e:React.FormEvent){
-    e.preventDefault();
-    try{
-      const id=await createProblem(title,description,difficulty,tags.split(',').map(t=>t.trim()).filter(Boolean));
-      setTitle('');setDescription('');setTags('react,typescript');
-      const list=await getProblems();
-      setProblems(list);
-      setView('home');
-      alert('Problem created: '+id);
-    }catch(err:any){alert(err.message||'Failed')}
-  }
-
-  async function submitSolution(e:React.FormEvent){
-    e.preventDefault();
-    if(!selected)return;
-    try{
-      await createSolution(selected.id,body);
-      setBody('');
-      const sols=await getSolutions(selected.id);
-      setSolutions(sols);
-    }catch(err:any){alert(err.message||'Failed')}
-  }
-
-  async function onAccept(sol:Solution){
-    if(!selected)return;
-    try{
-      await acceptSolution(selected.id,sol.id);
-      const sols=await getSolutions(selected.id);
-      setSolutions(sols);
-      const full=await getProblem(selected.id);
-      setSelected(full);
-    }catch(err:any){alert(err.message||'Failed')}
-  }
-
-  async function onBookmark(){
-    if(!selected)return;
-    try{
-      await toggleBookmark(selected.id);
-      alert('Bookmark toggled');
-    }catch(err:any){alert(err.message||'Failed')}
-  }
-
-  return (
-    <div className="app">
-      <header className="topbar">
-        <div className="container topbar-inner">
-          <div className="brand" onClick={()=>setView('home')} style={{cursor:'pointer'}}>
-            <span>S</span> SolveHub
-          </div>
-          <nav className="nav">
-            <button className={view==='home'?'active':''} onClick={()=>setView('home')}>Problems</button>
-            <button className={view==='new'?'active':''} onClick={()=>setView('new')}>New</button>
-            {profile && <button className={view==='profile'?'active':''} onClick={()=>setView('profile')}>{profile.display_name}</button>}
-          </nav>
-        </div>
-      </header>
-
-      <main className="container">
-        {loading && <div className="empty">Loading…</div>}
-
-        {!loading && view==='home' && (
-          <>
-            <section className="hero">
-              <h1>Find problems. Share solutions.</h1>
-              <p>SolveHub is a community for developers and companies to post real-world problems and collaborate on solutions.</p>
-              <button className="btn primary" style={{marginTop:20}} onClick={()=>setView('new')}>Post a problem</button>
-            </section>
-            <section className="section">
-              <div className="section-head">
-                <h2>Recent problems</h2>
-              </div>
-              <div className="search">
-                <input placeholder="Search problems…" value={query} onChange={e=>setQuery(e.target.value)} />
-              </div>
-              <div className="grid">
-                {filtered.length===0 && <Empty title="No problems yet" text="Be the first to post a problem." />}
-                {filtered.map(p=>(
-                  <article key={p.id} className="card" onClick={()=>openProblem(p)} style={{cursor:'pointer'}}>
-                    <h3>{p.title}</h3>
-                    <p>{p.description.slice(0,140)}{p.description.length>140?'…':''}</p>
-                    <div className="meta">
-                      <span className="tag">{p.difficulty}</span>
-                      <span className="tag muted">{p.status}</span>
-                      <span className="muted"><Eye size={14}/> {p.views}</span>
-                      <span className="muted">{p.solution_count} solutions</span>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </section>
-          </>
-        )}
-
-        {!loading && view==='new' && (
-          <section className="section">
-            <div className="section-head"><h2>Post a new problem</h2></div>
-            <form className="form" onSubmit={submitProblem}>
-              <label>Title<input value={title} onChange={e=>setTitle(e.target.value)} required /></label>
-              <label>Description<textarea value={description} onChange={e=>setDescription(e.target.value)} required /></label>
-              <label>Difficulty
-                <select value={difficulty} onChange={e=>setDifficulty(e.target.value as Difficulty)}>
-                  <option value="beginner">Beginner</option>
-                  <option value="intermediate">Intermediate</option>
-                  <option value="advanced">Advanced</option>
-                  <option value="expert">Expert</option>
-                </select>
-              </label>
-              <label>Tags (comma separated)<input value={tags} onChange={e=>setTags(e.target.value)} /></label>
-              <div className="form-actions">
-                <button type="button" className="btn ghost" onClick={()=>setView('home')}>Cancel</button>
-                <button className="btn primary" type="submit">Create</button>
-              </div>
-            </form>
-          </section>
-        )}
-
-        {!loading && view==='problem' && selected && (
-          <section className="problem-detail">
-            <button className="btn ghost" onClick={()=>setView('home')}>← Back</button>
-            <h1>{selected.title}</h1>
-            <div className="meta">
-              <span className="tag">{selected.difficulty}</span>
-              <span className="tag">{selected.status}</span>
-              <span className="muted"><Eye size={14}/> {selected.views}</span>
-              <button className="btn ghost" onClick={onBookmark}><Bookmark size={16}/> Bookmark</button>
-            </div>
-            <div className="body">{selected.description}</div>
-            <h2 style={{marginTop:28}}>Solutions</h2>
-            <div className="solutions">
-              {solutions.length===0 && <Empty title="No solutions yet" text="Be the first to propose a solution." />}
-              {solutions.map(s=>(
-                <div key={s.id} className={`solution ${s.is_accepted?'accepted':''}`}>
-                  <div className="solution-head">
-                    <strong>{s.author?.display_name||'Anonymous'}</strong>
-                    {s.is_accepted && <span className="badge">Accepted</span>}
-                    {!s.is_accepted && <button className="btn ghost" onClick={()=>onAccept(s)}><CheckCircle2 size={16}/> Accept</button>}
-                  </div>
-                  <div style={{whiteSpace:'pre-wrap'}}>{s.body}</div>
-                </div>
-              ))}
-            </div>
-            <form className="form" style={{marginTop:24}} onSubmit={submitSolution}>
-              <label>Your solution<textarea value={body} onChange={e=>setBody(e.target.value)} required /></label>
-              <div className="form-actions"><button className="btn primary" type="submit">Submit solution</button></div>
-            </form>
-          </section>
-        )}
-
-        {!loading && view==='profile' && profile && (
-          <section className="section">
-            <div className="profile-head">
-              <div className="avatar">{profile.display_name.slice(0,1).toUpperCase()}</div>
-              <div>
-                <h2 style={{margin:0}}>{profile.display_name}</h2>
-                <p className="muted">@{profile.username} · {profile.role}</p>
-              </div>
-            </div>
-            <div className="metrics">
-              <div className="metric"><strong>{profile.reputation}</strong> Reputation</div>
-              <div className="metric"><strong>{profile.problems_solved}</strong> Solved</div>
-              <div className="metric"><strong>{profile.solutions_accepted}</strong> Accepted</div>
-            </div>
-          </section>
-        )}
-      </main>
-
-      <footer className="footer">
-        <div className="container">SolveHub MVP · Built with Vite, React & Supabase</div>
-      </footer>
-    </div>
-  );
-}
-
-function Empty({title,text}:{title:string;text:string}){return <div className="empty"><Code2 size={25}/><h3>{title}</h3><p>{text}</p></div>}
-
+const fmt=(d:string)=>new Intl.RelativeTimeFormat('en',{numeric:'auto'}).format(Math.round((new Date(d).getTime()-Date.now())/86400000),'day');
+function App(){const [session,setSession]=useState<any>(null);const [profile,setProfile]=useState<Profile|null>(null);const [page,setPage]=useState<'discover'|'ask'|'profile'|'problem'>('discover');const [selected,setSelected]=useState<string|null>(null);const [query,setQuery]=useState('');const [mobile,setMobile]=useState(false);
+ useEffect(()=>{if(!supabase)return; supabase.auth.getSession().then(({data})=>setSession(data.session)); const {data}=supabase.auth.onAuthStateChange((_e,s)=>setSession(s)); return()=>data.subscription.unsubscribe()},[]);
+ useEffect(()=>{if(session?.user?.id)getProfile(session.user.id).then(setProfile)},[session]);
+ if(!supabase)return <div className="center"><div className="panel"><h1>SolveHub</h1><p>Supabase is not configured. Copy <code>.env.example</code> to <code>.env.local</code> and add your publishable key.</p></div></div>;
+ if(!session)return <Auth/>;
+ const go=(p:any,id?:string)=>{setPage(p);setSelected(id??null);setMobile(false)};
+ return <div className="app"><aside className={mobile?'side open':'side'}><div className="brand"><div className="brandmark">S</div><span>SolveHub</span><button className="mobile-close" onClick={()=>setMobile(false)}><X size={18}/></button></div><nav><Nav active={page==='discover'||page==='problem'} icon={<Home size={18}/>} text="Discover" onClick={()=>go('discover')}/><Nav active={page==='ask'} icon={<Plus size={18}/>} text="Ask a problem" onClick={()=>go('ask')}/><Nav active={page==='profile'} icon={<UserRound size={18}/>} text="My profile" onClick={()=>go('profile')}/></nav><div className="side-bottom"><div className="mini-profile"><Avatar p={profile}/><div><b>{profile?.display_name||'Loading'}</b><small>{profile?.role==='developer'?'Developer':'User'} · {profile?.reputation||0} rep</small></div></div><button className="ghost wide" onClick={()=>supabase.auth.signOut()}><LogOut size={16}/> Sign out</button></div></aside><main><header><button className="mobile-menu" onClick={()=>setMobile(true)}><Menu/></button><div className="search"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search technical problems..."/></div><button className="ask-btn" onClick={()=>go('ask')}><Plus size={17}/> Ask problem</button></header>{page==='discover'&&<Feed query={query} open={id=>go('problem',id)}/>}{page==='ask'&&<Ask done={id=>go('problem',id)}/>}{page==='problem'&&selected&&<ProblemView id={selected} back={()=>go('discover')}/>}{page==='profile'&&<ProfileView profile={profile}/>}</main></div>}
+function Nav({active,icon,text,onClick}:{active:boolean;icon:React.ReactNode;text:string;onClick:()=>void}){return <button className={active?'nav-item active':'nav-item'} onClick={onClick}>{icon}<span>{text}</span></button>}
+function Avatar({p}:{p:Profile|null|undefined}){return <div className="avatar">{(p?.display_name||'S').slice(0,1).toUpperCase()}</div>}
+function Auth(){const [mode,setMode]=useState<'login'|'signup'>('login');const [role,setRole]=useState<'user'|'developer'>('user');const [email,setEmail]=useState('');const [pass,setPass]=useState('');const [name,setName]=useState('');const [err,setErr]=useState('');const [busy,setBusy]=useState(false);
+ const submit=async(e:React.FormEvent)=>{e.preventDefault();setBusy(true);setErr('');try{if(mode==='login'){const {error}=await supabase!.auth.signInWithPassword({email,password:pass});if(error)throw error}else{const username=(name||email.split('@')[0]).toLowerCase().replace(/[^a-z0-9_]/g,'').slice(0,24)||'user';const {error}=await supabase!.auth.signUp({email,password:pass,options:{data:{display_name:name||'SolveHub User',username,role}}});if(error)throw error;setErr('Account created. Check your email if confirmation is enabled, then sign in.')}}catch(e:any){setErr(e.message||'Something went wrong')}finally{setBusy(false)}};
+ return <div className="auth"><div className="auth-card"><div className="brand center-brand"><div className="brandmark">S</div><span>SolveHub</span></div><h1>{mode==='login'?'Welcome back':'Create account'}</h1><p className="muted">{mode==='login'?'Sign in to continue solving.':'Join as a user or developer.'}</p><div className="tabs"><button className={mode==='login'?'tab active':'tab'} onClick={()=>setMode('login')}>Sign in</button><button className={mode==='signup'?'tab active':'tab'} onClick={()=>setMode('signup')}>Sign up</button></div><form onSubmit={submit} className="form">{mode==='signup'&&<><label>Display name<input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name"/></label><label>I am a<div className="role-row"><button type="button" className={role==='user'?'role active':'role'} onClick={()=>setRole('user')}>User</button><button type="button" className={role==='developer'?'role active':'role'} onClick={()=>setRole('developer')}>Developer</button></div></label></>}<label>Email<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required/></label><label>Password<input type="password" value={pass} onChange={e=>setPass(e.target.value)} required minLength={6}/></label>{err&&<div className="error">{err}</div>}<button className="primary wide" disabled={busy}>{busy?<Loader2 className="spin" size={18}/>:mode==='login'?'Sign in':'Create account'}</button></form></div></div>}
+function Feed({query,open}:{query:string;open:(id:string)=>void}){const [items,setItems]=useState<Problem[]>([]);const [loading,setLoading]=useState(true);
+ useEffect(()=>{getProblems().then(setItems).catch(console.error).finally(()=>setLoading(false))},[]);
+ const filtered=useMemo(()=>items.filter(p=>!query||p.title.toLowerCase().includes(query.toLowerCase())||p.description.toLowerCase().includes(query.toLowerCase())),[items,query]);
+ if(loading)return <div className="content"><div className="empty"><Loader2 className="spin" size={24}/><p>Loading problems…</p></div></div>;
+ return <div className="content"><div className="eyebrow">Discover</div><h1>Technical problems</h1><p className="lede">Browse real problems from the community and share solutions.</p><div className="grid">{filtered.length===0&&<div className="empty"><Code2 size={28}/><h3>No problems yet</h3><p>Be the first to ask one.</p></div>}{filtered.map(p=><article key={p.id} className="card" onClick={()=>open(p.id)}><div className="card-top"><span className="pill">{p.difficulty}</span><span className="muted">{fmt(p.created_at)}</span></div><h3>{p.title}</h3><p>{p.description.slice(0,160)}{p.description.length>160?'…':''}</p><div className="card-meta"><span><Eye size={14}/> {p.views}</span><span><MessageSquare size={14}/> {p.solution_count}</span><span className="status">{p.status}</span></div></article>)}</div></div>}
+function Ask({done}:{done:(id:string)=>void}){const [title,setTitle]=useState('');const [desc,setDesc]=useState('');const [difficulty,setDifficulty]=useState<Difficulty>('intermediate');const [tags,setTags]=useState('');const [busy,setBusy]=useState(false);
+ const submit=async(e:React.FormEvent)=>{e.preventDefault();setBusy(true);try{const id=await createProblem(title,desc,difficulty,tags.split(',').map(x=>x.trim().toLowerCase()).filter(Boolean));done(id)}catch(e:any){alert(e.message)}finally{setBusy(false)}};
+ return <section className="content narrow"><div className="eyebrow">Ask</div><h1>Post a problem</h1><form className="form" onSubmit={submit}><label>Title<input value={title} onChange={e=>setTitle(e.target.value)} required placeholder="Short, specific title"/></label><label>Description<textarea value={desc} onChange={e=>setDesc(e.target.value)} required placeholder="What actually happened? Include useful error messages and context."/></label><div className="grid2"><label>Difficulty<select value={difficulty} onChange={e=>setDifficulty(e.target.value as Difficulty)}>{['beginner','intermediate','advanced','expert'].map(x=><option key={x}>{x}</option>)}</select></label><label>Technologies<input value={tags} onChange={e=>setTags(e.target.value)} placeholder="react, typescript, supabase"/></label></div><button className="primary" disabled={busy}>{busy?<Loader2 className="spin" size={18}/>:'Publish problem'}</button></form></section>}
+function ProblemView({id,back}:{id:string;back:()=>void}){const [problem,setProblem]=useState<Problem|null>(null);const [solutions,setSolutions]=useState<Solution[]>([]);const [body,setBody]=useState('');const [busy,setBusy]=useState(false);
+ useEffect(()=>{recordView(id);getProblem(id).then(setProblem);getSolutions(id).then(setSolutions)},[id]);
+ const submit=async(e:React.FormEvent)=>{e.preventDefault();setBusy(true);try{await createSolution(id,body);setBody('');setSolutions(await getSolutions(id))}catch(e:any){alert(e.message)}finally{setBusy(false)}};
+ const accept=async(sid:string)=>{try{await acceptSolution(id,sid);setSolutions(await getSolutions(id));setProblem(await getProblem(id))}catch(e:any){alert(e.message)}};
+ if(!problem)return <div className="content"><Loader2 className="spin"/></div>;
+ return <div className="content"><button className="ghost" onClick={back}><ChevronLeft size={16}/> Back</button><div className="problem-head"><span className="pill">{problem.difficulty}</span><h1>{problem.title}</h1><p className="muted">Posted {fmt(problem.created_at)} · {problem.views} views · {problem.status}</p></div><div className="body">{problem.description}</div><h2>Solutions</h2><div className="solutions">{solutions.length===0&&<div className="empty"><p>No solutions yet. Be the first.</p></div>}{solutions.map(s=><div key={s.id} className={s.is_accepted?'solution accepted':'solution'}><div className="solution-head"><div className="author"><Avatar p={s.author}/><div><b>{s.author?.display_name||'Anonymous'}</b><small>{fmt(s.created_at)}</small></div></div>{s.is_accepted?<span className="badge"><CheckCircle2 size={14}/> Accepted</span>:<button className="ghost" onClick={()=>accept(s.id)}><ShieldCheck size={14}/> Accept</button>}</div><div className="solution-body">{s.body}</div></div>)}</div><form className="form" onSubmit={submit}><label>Your solution<textarea value={body} onChange={e=>setBody(e.target.value)} required placeholder="Explain your approach clearly…"/></label><button className="primary" disabled={busy}>{busy?<Loader2 className="spin" size={18}/>:<><Send size={16}/> Submit solution</>}</button></form></div>}
+function ProfileView({profile}:{profile:Profile|null}){if(!profile)return <div className="content"><Loader2 className="spin"/></div>;return <div className="content"><div className="profile-hero"><Avatar p={profile}/><div><h1>{profile.display_name}</h1><p className="muted">@{profile.username} · {profile.role}</p></div></div><div className="stats"><div className="stat"><b>{profile.reputation}</b><span>Reputation</span></div><div className="stat"><b>{profile.problems_solved}</b><span>Solved</span></div><div className="stat"><b>{profile.solutions_accepted}</b><span>Accepted</span></div></div>{profile.bio&&<p className="bio">{profile.bio}</p>}</div>}
 createRoot(document.getElementById('root')!).render(<App/>);
